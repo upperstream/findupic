@@ -1,0 +1,4 @@
+*.go eof=lf
+*.json eol=lf
+*.md eol=lf
+*.mod eol=lf
