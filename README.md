@@ -7,10 +7,19 @@ the output to the standard output stream.
 ## Usage
 
 ```
-findupic <directory>...
+findupic [ -error-log=<logfile> ] <directory>...
 ```
 
-where _directory_ is the path to the directory to scan for image files.
+where _directory_ is the path to the directory to scan for image files,
+and _logfile_ is the error log file, which defaults to the standard
+error stream.
+
+This program does not stop when it finds an erroneous image file, but
+writes its file name into the error log file and continues finding
+duplicates.
+
+This program returns `1` as an error exit status when it detects any
+erroneous files, while returns `0` as the success exit status.
 
 ## Example
 
@@ -18,7 +27,7 @@ where _directory_ is the path to the directory to scan for image files.
 findupic /path/to/images
 ```
 
-This command will scan the `/path/to/images` directory and descendents
+This command will scan the `/path/to/images` directory and descendants
 for image files, and write the output to the standard output stream.
 
 Two or more directories can be specified:
@@ -28,13 +37,13 @@ findupic dir1 dir2
 ```
 
 This command will scan two directories `dir1` and `dir2`, as well as
-their descendents for images files.  Duplicates will be reported
+their descendants for images files.  Duplicates will be reported
 regardless of which directory tree the image file resides in.
 
 ## Output
 
 The program writes the paths of duplicate image files to the standard
-output stream follwing the SHA-256 hash of the decoded bitmap:
+output stream following the SHA-256 hash of the decoded bitmap:
 
 ```
 $ ./findupic.exe .

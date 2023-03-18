@@ -11,6 +11,7 @@ package main
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"flag"
 	"fmt"
 	"image"
 	"image/draw"
@@ -22,12 +23,35 @@ import (
 )
 
 func main() {
-	if len(os.Args) < 2 {
-		fmt.Println("Usage: findupic <directory>...")
+	// Define command line options
+	errorLogPtr := flag.String("error-log", "", "file to log errors; defaults to stderr")
+	flag.Parse()
+
+	if len(flag.Args()) < 1 {
+		fmt.Println("Usage: findupic [options] <directory>...")
+		flag.PrintDefaults()
 		return
 	}
+
+	var errorLog *os.File
+	if errorLogPtr == nil || *errorLogPtr == "" {
+		errorLog = os.Stderr
+	} else {
+		// Open the error log file
+		var err error
+		errorLog, err = os.Create(*errorLogPtr)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error creating error log file: %s\n", err)
+			os.Exit(1)
+		}
+		defer errorLog.Close()
+	}
+
+	// Count the number of erroneous files
+	numErrors := 0
+
 	images := make(map[string][]string)
-	for _, dir := range os.Args[1:] {
+	for _, dir := range flag.Args() {
 		err := filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
 			if err != nil {
 				return err
@@ -38,17 +62,20 @@ func main() {
 			if isImageFile(path) {
 				hash, err := getImageHash(path)
 				if err != nil {
-					return err
+					fmt.Fprintf(errorLog, "%s\n", err.Error())
+					numErrors++
+					return nil
 				}
 				images[hash] = append(images[hash], path)
 			}
 			return nil
 		})
 		if err != nil {
-			fmt.Println(err)
-			return
+			fmt.Fprintf(errorLog, "%s\n", err)
+			numErrors++
 		}
 	}
+
 	for hash, paths := range images {
 		if len(paths) > 1 {
 			fmt.Printf("Duplicate images with hash %s:\n", hash)
@@ -57,6 +84,11 @@ func main() {
 			}
 			fmt.Println()
 		}
+	}
+
+	if numErrors > 0 {
+		fmt.Fprintf(os.Stderr, "Encountered %d error(s). Check the error log for details.\n", numErrors)
+		os.Exit(1)
 	}
 }
 
@@ -79,7 +111,7 @@ func getImageHash(path string) (string, error) {
 	defer file.Close()
 	img, _, err := image.Decode(file)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("error decoding image %s: %s", path, err.Error())
 	}
 
 	hasher := sha256.New()
