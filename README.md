@@ -7,12 +7,14 @@ the output to the standard output stream.
 ## Usage
 
 ```
-findupic [ -error-log=<logfile> ] <directory>...
+findupic [ -csv ] [ -error-log=<logfile> ] <directory>...
 ```
 
-where _directory_ is the path to the directory to scan for image files,
-and _logfile_ is the error log file, which defaults to the standard
-error stream.
+where _directory_ is the path to the directory to scan for image files.
+
+If `-csv` flag is added, this program prints the report in CSV format
+to the standard output stream.  If `-error-log` flag is added, this
+program writes the errors into the error log file named _logfile_.
 
 This program does not stop when it finds an erroneous image file, but
 writes its file name into the error log file and continues finding
@@ -47,7 +49,7 @@ output stream following the SHA-256 hash of the decoded bitmap:
 
 ```
 $ ./findupic.exe .
-Duplicate images with hash c22c....:
+Duplicate images with hash c22c...:
 dir1/image_B2.jpg
 image_B1.jpg
 
@@ -57,6 +59,19 @@ image_A1.jpg
 image_A2.jpg
 
 ```
+
+In CSV output mode, the same report will look like:
+
+```
+SHA256,Path
+c22c...,dir1\image_A3.jpg
+c22c...,image_A1.jpg
+c22c...,image_A2.jpg
+92e4...,dir1\image_B2.jpg
+92e4...,dir2\image_B1.jpg
+```
+
+Note that in either mode SHA256 will be printed in full length.
 
 ## Build
 

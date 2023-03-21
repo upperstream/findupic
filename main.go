@@ -10,6 +10,7 @@ package main
 
 import (
 	"crypto/sha256"
+	"encoding/csv"
 	"encoding/hex"
 	"flag"
 	"fmt"
@@ -24,7 +25,8 @@ import (
 
 func main() {
 	// Define command line options
-	errorLogPtr := flag.String("error-log", "", "file to log errors; defaults to stderr")
+	var errorLogPtr *string = flag.String("error-log", "", "file to log errors (default: stderr)")
+	var csvPtr *bool = flag.Bool("csv", false, "print output in CSV format (default: false)")
 	flag.Parse()
 
 	if len(flag.Args()) < 1 {
@@ -33,11 +35,9 @@ func main() {
 		return
 	}
 
+	// Open the error log file or use stderr as default
 	var errorLog *os.File
-	if errorLogPtr == nil || *errorLogPtr == "" {
-		errorLog = os.Stderr
-	} else {
-		// Open the error log file
+	if *errorLogPtr != "" {
 		var err error
 		errorLog, err = os.Create(*errorLogPtr)
 		if err != nil {
@@ -45,6 +45,17 @@ func main() {
 			os.Exit(1)
 		}
 		defer errorLog.Close()
+	} else {
+		errorLog = os.Stderr
+	}
+
+	// Open the CSV output file or use stdout as default
+	var outputWriter *csv.Writer
+	if *csvPtr {
+		outputWriter = csv.NewWriter(os.Stdout)
+		defer outputWriter.Flush()
+
+		outputWriter.Write([]string{"SHA256", "Path"})
 	}
 
 	// Count the number of erroneous files
@@ -78,11 +89,17 @@ func main() {
 
 	for hash, paths := range images {
 		if len(paths) > 1 {
-			fmt.Printf("Duplicate images with hash %s:\n", hash)
-			for _, path := range paths {
-				fmt.Println(path)
+			if *csvPtr {
+				for _, path := range paths {
+					outputWriter.Write([]string{hash, path})
+				}
+			} else {
+				fmt.Printf("Duplicate images with hash %s:\n", hash)
+				for _, path := range paths {
+					fmt.Println(path)
+				}
+				fmt.Println()
 			}
-			fmt.Println()
 		}
 	}
 
