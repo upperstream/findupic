@@ -4,12 +4,9 @@ duplicate images within one or more directories. The tool finds images
 that have identical SHA256 hashes, indicating that their decoded
 bitmaps are identical.
 
-By default, the tool outputs the paths of duplicate images to the
-console. The tool also supports writing the output to a CSV file using
-the -csv command-line flag. The CSV file consists of two columns:
-SHA256 hash and image path.
-
 # Usage
+
+	findupic [OPTIONS] <directory>...
 
 The findupic command accepts one or more directories as arguments. For
 example:
@@ -18,23 +15,39 @@ example:
 
 The tool searches each directory and its subdirectories for image files
 with the extensions .jpg, .jpeg, .png, and .gif. For each image file,
-the tool computes its SHA256 hash and adds the path to a list of images
-with that hash. If the tool finds multiple images with the same hash,
-it reports those images as duplicates.
+the tool computes SHA256 hash of its decoded bitmap and adds the path
+to a list of images with that hash. If the tool finds multiple images
+with the same hash, it reports those images as duplicates.
+
+# Options
+
+	-csv             Enable CSV output
+	-error-log FILE  Write error messages to FILE instead of stderr
+	-h, --help       Show this help message and exit
+
+Example usage:
+
+	# Find duplicate images in the current directory and write the
+	# results to a CSV file
+	findupic -csv . > duplicates.csv
+
+	# Find duplicate images in the specified directories and write
+	# the results to stderr
+	findupic -error-log=errors.log /path/to/dir1 /path/to/dir2
 
 # Output
 
-By default, the tool outputs the paths of duplicate images to the
-console. For example:
+By default, findupic outputs the SHA256 hash and file path of duplicate
+images in a human-readable format to the console. For example:
 
 	Duplicate images with hash 34c7d0a9a0083c8613a3cd0f7c704d438ee88b3e3cd141f599ce694f4979ac9:
 	/home/user/Pictures/IMG_1234.jpg
 	/mnt/media/photos/2019/IMG_5678.jpg
 
-When the -csv command-line flag is used, the tool writes the output to
-a CSV file instead of the console. The CSV file consists of two
-columns: SHA256 hash and image path. The header row of the CSV file is
-"SHA256", "Path". For example:
+If CSV output is enabled, the tool outputs the results in
+comma-separated values format. The output is written to stdout by
+default, but can be written to a file using shell redirection. For
+example:
 
 	SHA256,Path
 	34c7d0a9a0083c8613a3cd0f7c704d438ee88b3e3cd141f599ce694f4979ac9,/home/user/Pictures/IMG_1234.jpg

@@ -12,6 +12,7 @@ import (
 	"crypto/sha256"
 	"encoding/csv"
 	"encoding/hex"
+	"errors"
 	"flag"
 	"fmt"
 	"image"
@@ -23,46 +24,56 @@ import (
 	"path/filepath"
 )
 
-func main() {
-	// Define command line options
-	var errorLogPtr *string = flag.String("error-log", "", "file to log errors (default: stderr)")
-	var csvPtr *bool = flag.Bool("csv", false, "print output in CSV format (default: false)")
-	flag.Parse()
+type Config struct {
+	directories []string
+	csv         bool
+	errorLog    string
+}
 
-	if len(flag.Args()) < 1 {
-		fmt.Println("Usage: findupic [options] <directory>...")
-		flag.PrintDefaults()
-		return
+func main() {
+	// Parse command line arguments
+	config, err := parseArgs()
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
 	}
 
 	// Open the error log file or use stderr as default
 	var errorLog *os.File
-	if *errorLogPtr != "" {
+	if config.errorLog != "" {
 		var err error
-		errorLog, err = os.Create(*errorLogPtr)
+		errorLog, err = os.Create(config.errorLog)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Error creating error log file: %s\n", err)
 			os.Exit(1)
 		}
 		defer errorLog.Close()
+	}
+
+	// Find duplicate images
+	duplicates, err := findDuplicateImages(config.directories, errorLog)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+
+	// Print results
+	if !config.csv {
+		printResults(duplicates, os.Stdout)
 	} else {
-		errorLog = os.Stderr
+		printResults(duplicates, os.Stdout)
 	}
+}
 
-	// Open the CSV output file or use stdout as default
-	var outputWriter *csv.Writer
-	if *csvPtr {
-		outputWriter = csv.NewWriter(os.Stdout)
-		defer outputWriter.Flush()
-
-		outputWriter.Write([]string{"SHA256", "Path"})
-	}
-
+// findDuplicateImages recursively walks through the specified directories to find all image files,
+// calculates the SHA256 hash for each image file, and returns a map of hash values to slices of
+// file paths for duplicate images.
+func findDuplicateImages(dirs []string, errorLog *os.File) (map[string][]string, error) {
 	// Count the number of erroneous files
 	numErrors := 0
 
-	images := make(map[string][]string)
-	for _, dir := range flag.Args() {
+	duplicates := make(map[string][]string)
+	for _, dir := range dirs {
 		err := filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
 			if err != nil {
 				return err
@@ -77,7 +88,11 @@ func main() {
 					numErrors++
 					return nil
 				}
-				images[hash] = append(images[hash], path)
+				if len(duplicates[hash]) > 0 {
+					duplicates[hash] = append(duplicates[hash], path)
+				} else {
+					duplicates[hash] = []string{path}
+				}
 			}
 			return nil
 		})
@@ -86,27 +101,33 @@ func main() {
 			numErrors++
 		}
 	}
-
-	for hash, paths := range images {
-		if len(paths) > 1 {
-			if *csvPtr {
-				for _, path := range paths {
-					outputWriter.Write([]string{hash, path})
-				}
-			} else {
-				fmt.Printf("Duplicate images with hash %s:\n", hash)
-				for _, path := range paths {
-					fmt.Println(path)
-				}
-				fmt.Println()
-			}
-		}
-	}
-
 	if numErrors > 0 {
 		fmt.Fprintf(os.Stderr, "Encountered %d error(s). Check the error log for details.\n", numErrors)
-		os.Exit(1)
 	}
+	return duplicates, nil
+}
+
+// parseArgs parses command-line arguments and returns a slice of directory paths, a boolean flag
+// indicating whether CSV output is enabled, and an error. The CSV flag is set to false by default
+// and can be enabled by passing the -csv command-line option. If there are no directory arguments,
+// the function returns an error indicating that at least one directory argument is required.
+func parseArgs() (config Config, err error) {
+	flag.Usage = func() {
+		fmt.Fprintf(os.Stderr, "Usage: %s [OPTIONS] <directory>...\n", os.Args[0])
+		fmt.Fprintln(os.Stderr, "Options:")
+		flag.PrintDefaults()
+	}
+
+	flag.BoolVar(&config.csv, "csv", false, "enable CSV output")
+	flag.StringVar(&config.errorLog, "error-log", "", "file to log errors (default: stderr)")
+	flag.BoolVar(&config.csv, "csv", false, "enable CSV output")
+	flag.Parse()
+
+	if len(flag.Args()) == 0 {
+		return config, errors.New("at least one directory argument is required")
+	}
+	config.directories = flag.Args()
+	return config, nil
 }
 
 // isImageFile returns true if the given file has an image file extension
@@ -128,6 +149,7 @@ func getImageHash(path string) (string, error) {
 		return "", err
 	}
 	defer file.Close()
+
 	img, _, err := image.Decode(file)
 	if err != nil {
 		return "", fmt.Errorf("error decoding image %s: %s", path, err.Error())
@@ -150,4 +172,25 @@ func convertToRGBA(img image.Image) *image.RGBA {
 	rgba := image.NewRGBA(bounds)
 	draw.Draw(rgba, bounds, img, bounds.Min, draw.Src)
 	return rgba
+}
+
+// printResults writes the image duplicates to a CSV file or standard output,
+// depending on the output type specified.
+//
+// The images parameter is a map containing the SHA256 hash of each image
+// and a list of paths to images with the same hash. The out parameter is
+// the output file handle for writing the results.
+func printResults(images map[string][]string, out *os.File) {
+	writer := csv.NewWriter(out)
+	defer writer.Flush()
+
+	writer.Write([]string{"SHA256", "Path"})
+
+	for hash, paths := range images {
+		if len(paths) > 1 {
+			for _, path := range paths {
+				writer.Write([]string{hash, path})
+			}
+		}
+	}
 }
