@@ -109,6 +109,7 @@ func main() {
 	}
 }
 
+// isImageFile returns true if the given file has an image file extension
 func isImageFile(path string) bool {
 	ext := filepath.Ext(path)
 	switch ext {
@@ -119,6 +120,7 @@ func isImageFile(path string) bool {
 	}
 }
 
+// getImageHash returns the SHA256 hash of the given image file
 func getImageHash(path string) (string, error) {
 	//fmt.Printf("path: %s\n", path)
 	file, err := os.Open(path)
@@ -136,6 +138,7 @@ func getImageHash(path string) (string, error) {
 	return hex.EncodeToString(hasher.Sum(nil)), nil
 }
 
+// convertToRGBA converts the given image to an RGBA image
 func convertToRGBA(img image.Image) *image.RGBA {
 	// If the image is already an RGBA image, return it
 	if image, ok := img.(*image.RGBA); ok {
